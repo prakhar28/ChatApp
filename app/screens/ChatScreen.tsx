@@ -1,77 +1,83 @@
 import React, { useEffect } from "react";
-import { View, FlatList, StyleSheet, Text } from "react-native";
-import ChatMessage from "../components/ChatMessage";
-import MessageInput from "../components/MessageInput";
+import {
+    View,
+    FlatList,
+    StyleSheet,
+    ActivityIndicator,
+    Text,
+    KeyboardAvoidingView,
+    Platform,
+} from "react-native";
 import { useChatStore } from "../store/chatStore";
-import { TMessage } from "../types/message";
+import { useParticipantStore } from "@/app/store/participantStore";
+import ChatMessage from "../components/ChatMessage";
+import MessageInput from "@/app/components/MessageInput";
 
 const ChatScreen = () => {
-    const { messages, fetchMessages } = useChatStore();
+    const { messages, fetchMessages, fetchOlderMessages, loading, hasMore } = useChatStore();
+    const { fetchParticipants } = useParticipantStore();
 
     useEffect(() => {
+        // Fetch initial data
         fetchMessages();
+        fetchParticipants();
     }, []);
 
-    const findReplyMessage = (uuid: string): TMessage | undefined => {
-        return messages.find((message) => message.uuid === uuid);
+    const handleLoadMore = () => {
+        if (!loading && hasMore) {
+            fetchOlderMessages(); // Fetch older messages when user scrolls up
+        }
     };
 
-    const renderSeparator = (date: string) => (
-        <View style={styles.dateSeparator}>
-            <Text style={styles.dateText}>{date}</Text>
-        </View>
-    );
-
-    const renderMessage = ({ item, index }: any) => {
-        const isGrouped =
-            index > 0 &&
-            item.authorUuid === messages[index - 1]?.authorUuid &&
-            new Date(item.sentAt).toDateString() === new Date(messages[index - 1].sentAt).toDateString();
-
-        const showDateSeparator =
-            index === 0 ||
-            new Date(item.sentAt).toDateString() !==
-            new Date(messages[index - 1]?.sentAt).toDateString();
-
+    const renderFooter = () => {
+        if (!loading) return null;
         return (
-            <>
-                {showDateSeparator && renderSeparator(new Date(item.sentAt).toDateString())}
-                <ChatMessage message={item} isGrouped={isGrouped} findReplyMessage={findReplyMessage} />
-            </>
+            <View style={styles.loading}>
+                <ActivityIndicator size="small" color="#007bff" />
+                <Text>Loading...</Text>
+            </View>
         );
     };
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior={Platform.OS === "ios" ? "padding" : undefined} // Adjusts layout for iOS
+            keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // Offset for status/navigation bar
+        >
             <FlatList
                 data={messages}
                 keyExtractor={(item) => item.uuid}
-                renderItem={renderMessage}
-                initialNumToRender={10}
-                getItemLayout={(data, index) => ({
-                    length: 100,
-                    offset: 100 * index,
-                    index,
-                })}
+                renderItem={({ item, index }) => (
+                    <ChatMessage
+                        message={item}
+                        isGrouped={
+                            index > 0 &&
+                            item.authorUuid === messages[index - 1]?.authorUuid &&
+                            new Date(item.sentAt).toDateString() ===
+                            new Date(messages[index - 1]?.sentAt).toDateString()
+                        }
+                    />
+                )}
+                inverted // Latest messages at the bottom
+                onEndReached={handleLoadMore} // Trigger pagination when scrolling up
+                onEndReachedThreshold={0.1} // Trigger when 10% of the list is scrolled
+                ListFooterComponent={renderFooter} // Render footer properly
             />
             <MessageInput />
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#f8f9fa" },
-    dateSeparator: {
-        alignItems: "center",
-        marginVertical: 10,
+    container: {
+        flex: 1,
+        backgroundColor: "#fff",
     },
-    dateText: {
-        backgroundColor: "#e9ecef",
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 5,
-        fontSize: 12,
-        color: "#6c757d",
+    loading: {
+        padding: 10,
+        justifyContent: "center",
+        alignItems: "center",
     },
 });
 

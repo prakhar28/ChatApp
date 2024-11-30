@@ -11,9 +11,14 @@ export default function Layout() {
                     headerStyle: {
                         backgroundColor: theme.colors.primary,
                     },
-                    headerTintColor: theme.colors.background, // Header text color
+                    headerTitleStyle: {
+                        fontSize: 20,
+                        fontWeight: "bold",
+                        color: theme.colors.background,
+                    },
+                    headerTintColor: theme.colors.background,
                     contentStyle: {
-                        backgroundColor: theme.colors.background, // Screen background color
+                        backgroundColor: theme.colors.background,
                     },
                 }}
             />
