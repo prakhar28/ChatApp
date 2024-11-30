@@ -1,3 +1,5 @@
+import { TParticipant } from "./participant";
+
 export type TMessageAttachment = {
     uuid: string;
     type: "image";
@@ -21,4 +23,8 @@ export type TMessage = {
     authorUuid: string;
     sentAt: number;
     updatedAt: number;
+};
+
+export type TMessageJSON = Omit<TMessage, "replyToMessageUuid"> & {
+    replyToMessage?: Omit<TMessage, "replyToMessageUuid">;
 };

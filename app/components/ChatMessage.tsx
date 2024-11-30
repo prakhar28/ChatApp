@@ -1,149 +1,124 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, FlatList } from "react-native";
-import theme from "../theme";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, FlatList } from "react-native";
 import { TMessage } from "../types/message";
+import { useParticipantStore } from "../store/participantStore";
+import ParticipantDetails from "./ParticipantDetails";
 
 interface ChatMessageProps {
     message: TMessage;
     isGrouped: boolean;
-    findReplyMessage: (uuid: string) => TMessage | undefined; // Function to fetch reply message details
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, isGrouped, findReplyMessage }) => {
-    const openImagePreview = (url: string) => {
-        console.log("Open image preview:", url);
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, isGrouped }) => {
+    const [isParticipantModalVisible, setParticipantModalVisible] = useState(false);
+    const [isReactionModalVisible, setReactionModalVisible] = useState(false);
+
+    const { getParticipant } = useParticipantStore();
+    const participant = getParticipant(message.authorUuid);
+    const openUserDetails = () => {
+        setParticipantModalVisible(true);
+    };
+
+    const closeUserDetails = () => {
+        setParticipantModalVisible(false);
     };
 
     const openReactions = () => {
-        console.log("Open reactions for message:", message.uuid);
+        setReactionModalVisible(true);
     };
 
-    const openUserDetails = () => {
-        console.log("Open user details for user:", message.authorUuid);
+    const closeReactions = () => {
+        setReactionModalVisible(false);
     };
-
-    const replyToMessage = message.replyToMessageUuid ? findReplyMessage(message.replyToMessageUuid) : null;
 
     return (
         <View style={[styles.container, isGrouped && styles.grouped]}>
-            {!isGrouped && (
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={openUserDetails}>
-                        <Image
-                            source={{ uri: `https://api.adorable.io/avatars/40/${message.authorUuid}.png` }}
-                            style={styles.avatar}
-                        />
-                    </TouchableOpacity>
-                    <View>
-                        <Text style={styles.author}>{message.authorUuid}</Text>
-                        <Text style={styles.timestamp}>
-                            {new Date(message.sentAt).toLocaleTimeString()}
-                        </Text>
+            {!isGrouped && participant && (
+                <TouchableOpacity onPress={openUserDetails}>
+                    <View style={styles.header}>
+                        <Image source={{ uri: participant.avatarUrl }} style={styles.avatar} />
+                        <Text style={styles.author}>{participant.name}</Text>
                     </View>
-                </View>
+                </TouchableOpacity>
             )}
-            {replyToMessage && (
-                <View style={styles.replyContainer}>
-                    <Text style={styles.replyAuthor}>{replyToMessage.authorUuid}</Text>
-                    <Text style={styles.replyText}>{replyToMessage.text}</Text>
-                </View>
-            )}
-            <Text style={styles.text}>
-                {message.text} {message.updatedAt > message.sentAt && <Text style={styles.editedText}>(edited)</Text>}
-            </Text>
+
+            <Text style={styles.text}>{message.text}</Text>
+
             {message.attachments.map((attachment) => (
                 attachment.type === "image" && (
-                    <TouchableOpacity key={attachment.uuid} onPress={() => openImagePreview(attachment.url)}>
-                        <Image source={{ uri: attachment.url }} style={styles.image} />
-                    </TouchableOpacity>
+                    <Image key={attachment.uuid} source={{ uri: attachment.url }} style={styles.image} />
                 )
             ))}
+
             {message.reactions.length > 0 && (
-                <FlatList
-                    data={message.reactions}
-                    horizontal
-                    keyExtractor={(reaction) => reaction.uuid}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.reaction} onPress={openReactions}>
-                            <Text>{item.value}</Text>
-                        </TouchableOpacity>
-                    )}
-                />
+                <View style={styles.reactionsContainer}>
+                    <TouchableOpacity onPress={openReactions}>
+                        <Text style={styles.reactionsText}>
+                            {message.reactions.map((reaction) => reaction.value).join(" ")}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             )}
+
+            <Modal visible={isParticipantModalVisible} animationType="slide" onRequestClose={closeUserDetails}>
+                {participant && <ParticipantDetails participant={participant} onClose={closeUserDetails} />}
+            </Modal>
+
+            <Modal visible={isReactionModalVisible} animationType="slide" onRequestClose={closeReactions}>
+                <View style={styles.reactionModal}>
+                    <Text style={styles.modalTitle}>Reactions</Text>
+                    <FlatList
+                        data={message.reactions}
+                        keyExtractor={(item) => item.uuid}
+                        renderItem={({ item }) => (
+                            <View style={styles.reactionItem}>
+                                <Text style={styles.reactionEmoji}>{item.value}</Text>
+                                <Text style={styles.reactionAuthor}>
+                                    {getParticipant(item.participantUuid)?.name || "Unknown"}
+                                </Text>
+                            </View>
+                        )}
+                        removeClippedSubviews={true}
+                    />
+                    <TouchableOpacity style={styles.closeButton} onPress={closeReactions}>
+                        <Text style={styles.closeButtonText}>Close</Text>
+                    </TouchableOpacity>
+                </View>
+            </Modal>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        marginBottom: theme.spacing.sm,
-        padding: theme.spacing.sm,
-        backgroundColor: theme.colors.background,
-        borderRadius: theme.borderRadius.medium,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-    },
-    grouped: {
-        marginTop: -theme.spacing.xs,
-        marginLeft: theme.spacing.lg,
-        backgroundColor: theme.colors.secondary,
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: theme.spacing.xs,
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: theme.spacing.sm,
-    },
-    author: {
-        fontWeight: "bold",
-        fontSize: theme.fontSizes.medium,
-        color: theme.colors.text,
-    },
-    timestamp: {
-        fontSize: theme.fontSizes.small,
-        color: theme.colors.secondary,
-    },
-    replyContainer: {
-        borderLeftWidth: 2,
-        borderLeftColor: theme.colors.primary,
-        paddingLeft: theme.spacing.sm,
-        marginBottom: theme.spacing.xs,
-    },
-    replyAuthor: {
-        fontWeight: "bold",
-        color: theme.colors.primary,
-    },
-    replyText: {
-        fontSize: theme.fontSizes.small,
-        color: theme.colors.secondary,
-    },
-    text: {
-        fontSize: theme.fontSizes.medium,
-        color: theme.colors.text,
-    },
-    editedText: {
-        fontSize: theme.fontSizes.small,
-        color: theme.colors.secondary,
-    },
+    container: { padding: 10, marginBottom: 10, backgroundColor: "#f5f5f5", borderRadius: 5 },
+    grouped: { marginTop: -5 },
+    header: { flexDirection: "row", alignItems: "center", marginBottom: 5 },
+    avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+    author: { fontWeight: "bold", fontSize: 16 },
+    text: { fontSize: 14, marginBottom: 5 },
     image: {
         width: "100%",
         height: 200,
-        borderRadius: theme.borderRadius.medium,
-        marginTop: theme.spacing.sm,
+        borderRadius: 5,
+        marginTop: 10,
     },
-    reaction: {
-        marginRight: theme.spacing.xs,
-        backgroundColor: theme.colors.background,
-        borderRadius: theme.borderRadius.small,
-        padding: theme.spacing.xs,
+    reactionsContainer: { marginTop: 10, flexDirection: "row" },
+    reactionsText: { fontSize: 14, color: "#007bff" },
+
+    reactionModal: { flex: 1, padding: 20, backgroundColor: "#fff" },
+    modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+    reactionItem: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+    reactionEmoji: { fontSize: 20, marginRight: 10 },
+    reactionAuthor: { fontSize: 14, color: "#333" },
+    closeButton: {
+        marginTop: 20,
+        alignSelf: "center",
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        backgroundColor: "#007bff",
+        borderRadius: 5,
     },
+    closeButtonText: { color: "#fff", fontWeight: "bold" },
 });
 
 export default ChatMessage;
